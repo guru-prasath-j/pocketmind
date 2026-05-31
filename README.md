@@ -61,8 +61,7 @@ to a local LLM, and streams back a grounded answer with its sources.
 7. **Stream** a grounded answer back, with sources.
 
 A deeper walkthrough — both a technical flow and a plain-language flow — is in
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Interview talking points and
-likely Q&A are in [`docs/INTERVIEW_GUIDE.md`](docs/INTERVIEW_GUIDE.md).
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ---
 
