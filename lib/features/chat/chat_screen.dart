@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../core/service_locator.dart';
 import '../../data/models.dart';
-import 'chat_controller.dart';
+import 'chat_cubit.dart';
 
 class ChatScreen extends StatelessWidget {
   const ChatScreen({super.key, required this.documentId, required this.title});
@@ -13,9 +13,8 @@ class ChatScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) =>
-          ChatController(ServiceLocator.instance.rag, documentId),
+    return BlocProvider(
+      create: (_) => ChatCubit(ServiceLocator.instance.rag, documentId),
       child: _ChatView(title: title),
     );
   }
@@ -41,10 +40,10 @@ class _ChatViewState extends State<_ChatView> {
     super.dispose();
   }
 
-  void _send(ChatController c) {
+  void _send() {
     final text = _input.text;
     _input.clear();
-    c.send(text);
+    context.read<ChatCubit>().send(text);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scroll.hasClients) {
         _scroll.animateTo(
@@ -58,18 +57,18 @@ class _ChatViewState extends State<_ChatView> {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.watch<ChatController>();
-
     return Scaffold(
       appBar: AppBar(title: Text(widget.title)),
       body: Column(
         children: [
           Expanded(
-            child: ListView.builder(
-              controller: _scroll,
-              padding: const EdgeInsets.all(12),
-              itemCount: c.messages.length,
-              itemBuilder: (_, i) => _Bubble(message: c.messages[i]),
+            child: BlocBuilder<ChatCubit, ChatState>(
+              builder: (context, state) => ListView.builder(
+                controller: _scroll,
+                padding: const EdgeInsets.all(12),
+                itemCount: state.messages.length,
+                itemBuilder: (_, i) => _Bubble(message: state.messages[i]),
+              ),
             ),
           ),
           SafeArea(
@@ -84,7 +83,7 @@ class _ChatViewState extends State<_ChatView> {
                       minLines: 1,
                       maxLines: 4,
                       textInputAction: TextInputAction.send,
-                      onSubmitted: (_) => _send(c),
+                      onSubmitted: (_) => _send(),
                       decoration: const InputDecoration(
                         hintText: 'Ask about this document…',
                         border: OutlineInputBorder(),
@@ -92,9 +91,12 @@ class _ChatViewState extends State<_ChatView> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  IconButton.filled(
-                    onPressed: c.busy ? null : () => _send(c),
-                    icon: const Icon(Icons.send),
+                  BlocBuilder<ChatCubit, ChatState>(
+                    buildWhen: (a, b) => a.busy != b.busy,
+                    builder: (context, state) => IconButton.filled(
+                      onPressed: state.busy ? null : _send,
+                      icon: const Icon(Icons.send),
+                    ),
                   ),
                 ],
               ),

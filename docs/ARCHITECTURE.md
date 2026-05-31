@@ -55,8 +55,9 @@ The codebase is split into three layers with one-directional dependencies:
 - **`core/`** — framework-agnostic logic: LLM access, embeddings, chunking,
   retrieval, the RAG orchestrator, and DI.
 - **`data/`** — persistence and the import pipeline (SQLite + repository).
-- **`features/`** — UI, one folder per screen, each with a `ChangeNotifier`
-  controller and a widget. UI depends on `core`/`data`, never the reverse.
+- **`features/`** — UI, one folder per screen, each with a `flutter_bloc`
+  `Cubit` (plus an immutable `Equatable` state) and a widget. UI depends on
+  `core`/`data`, never the reverse.
 
 Dependencies are wired manually in `ServiceLocator` (a singleton built once in
 `main()`), which keeps construction explicit and testable without a DI package.
@@ -133,12 +134,17 @@ in a batch, and persists everything in one transaction-friendly flow.
 
 ### 2.8 State management & UI
 
-Each screen has a `ChangeNotifier` controller exposed through
-`ChangeNotifierProvider`. Controllers hold no Flutter widgets — they call into
-`core`/`data` and call `notifyListeners()`. The chat controller appends a
-placeholder assistant message, then rewrites it with `copyWith` on each streamed
-token, giving the live "typing" effect. This keeps business logic unit-testable
-and the widgets thin.
+Each screen has a `flutter_bloc` `Cubit` that emits an immutable state object
+(an `Equatable` class with `copyWith`), exposed through `BlocProvider` and
+consumed with `BlocBuilder` / `BlocConsumer`. Cubits hold no Flutter widgets —
+they call into `core`/`data` and `emit` new states. I chose Cubits over full
+event-driven Blocs because these flows are command-style (download, import,
+send) rather than complex event streams, so Cubits give the BLoC benefits —
+unidirectional data flow, immutable states, testability — without event
+boilerplate. The chat cubit appends a placeholder assistant message, then
+re-emits the list with `copyWith` on each streamed token for the live "typing"
+effect. Widgets stay thin and the logic is unit-testable by pumping the cubit
+and asserting emitted states.
 
 ### 2.9 Testing
 
@@ -157,5 +163,5 @@ layers are kept thin precisely so the logic worth testing lives here.
 | On-device LLM (`flutter_gemma`)  | Privacy, offline, no API cost                  | Larger app/model footprint; device-dependent speed |
 | Hashing embeddings by default    | Zero download, deterministic, instant          | Lexical not semantic → swap in MiniLM via interface |
 | Brute-force vector search        | Simple, fast enough for personal corpus        | Add ANN index (HNSW/IVF) if corpus grows         |
-| `provider` + manual DI           | Lightweight, explicit, testable                | Could move to Riverpod/get_it at scale           |
+| `flutter_bloc` (Cubits) + manual DI | Unidirectional flow, immutable & testable    | Could promote to event-driven Blocs if flows grow |
 | Interfaces for LLM & embeddings  | Swap implementations without touching UI       | Slight upfront abstraction cost                  |

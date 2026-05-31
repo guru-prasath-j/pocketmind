@@ -11,7 +11,8 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_gemma: ^0.8.0          # on-device LLM inference (MediaPipe under the hood)
-  provider: ^6.1.2              # lightweight state management
+  flutter_bloc: ^8.1.6          # BLoC state management (Cubits + immutable states)
+  equatable: ^2.0.5             # value equality for BLoC states
   sqflite: ^2.3.3               # local SQLite store for chunks + embeddings
   path: ^1.9.0
   path_provider: ^2.1.3

@@ -41,7 +41,7 @@ to a local LLM, and streams back a grounded answer with its sources.
 | Concern              | Choice                                            |
 |----------------------|---------------------------------------------------|
 | UI                   | Flutter, Material 3                               |
-| State management     | `provider` (ChangeNotifier)                       |
+| State management     | `flutter_bloc` (Cubits + immutable states)        |
 | On-device LLM        | `flutter_gemma` (Gemma 2 2B IT, int4)             |
 | PDF extraction       | `syncfusion_flutter_pdf`                          |
 | Storage              | `sqflite` (SQLite)                                |
@@ -88,9 +88,9 @@ lib/
     local_db.dart               sqflite schema + queries.
     document_repository.dart    Import → extract → chunk → embed → store.
   features/
-    setup/                      First-run model download screen.
-    library/                    Document list + import.
-    chat/                       Per-document chat UI.
+    setup/                      First-run model download (Cubit + screen).
+    library/                    Document list + import (Cubit + screen).
+    chat/                       Per-document chat (Cubit + screen).
 test/
   rag_test.dart                 Unit tests for chunker + embedder.
 ```
