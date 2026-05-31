@@ -1,0 +1,22 @@
+# Flutter / Dart
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+# IDE
+.idea/
+.vscode/
+*.iml
+# OS
+.DS_Store
+# Native
+ios/Pods/
+android/.gradle/
+# Secrets / models (don't commit large weights)
+.env
+*.bin
+*.task
+assets/models/
