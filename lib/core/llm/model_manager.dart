@@ -19,7 +19,7 @@ class ModelManager {
   /// Emits download progress as a percentage (0–100) for a progress bar.
   Stream<int> downloadModel() {
     return _modelManager
-        .installModelFromNetworkWithProgress(AppConstants.modelDownloadUrl);
+        .downloadModelFromNetworkWithProgress(AppConstants.modelDownloadUrl);
   }
 
   /// Alternative to downloading: ship the model bundled as a Flutter asset.

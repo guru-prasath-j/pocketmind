@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import 'core/constants.dart';
@@ -27,6 +28,17 @@ class _Root extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (kIsWeb) {
+      return const Scaffold(
+        body: Center(
+          child: Text(
+            'PocketMind runs on Android, iOS, and desktop.\n'
+            'On-device AI inference is not supported in the browser.',
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
     return FutureBuilder<bool>(
       future: ServiceLocator.instance.modelManager.isModelInstalled(),
       builder: (context, snap) {

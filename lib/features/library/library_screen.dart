@@ -60,7 +60,7 @@ class _LibraryView extends StatelessWidget {
                           onTap: () => Navigator.of(context).push(
                             MaterialPageRoute(
                               builder: (_) => ChatScreen(
-                                  documentId: doc.id, title: doc.title),
+                                  documentId: doc.id!, title: doc.title),
                             ),
                           ),
                         );

@@ -1,4 +1,6 @@
+import 'package:flutter_gemma/core/model.dart';
 import 'package:flutter_gemma/flutter_gemma.dart';
+import 'package:flutter_gemma/pigeon.g.dart';
 
 import '../constants.dart';
 import 'llm_service.dart';
@@ -37,7 +39,7 @@ class GemmaLlmService implements LlmService {
       temperature: AppConstants.temperature,
       topK: AppConstants.topKSampling,
     );
-    await _session!.addQueryChunk(Message.text(text: prompt, isUser: true));
+    await _session!.addQueryChunk(Message(text: prompt, isUser: true));
     yield* _session!.getResponseAsync();
     await _session!.close();
     _session = null;

@@ -51,7 +51,7 @@ class ModelSetupCubit extends Cubit<ModelSetupState> {
     emit(state.copyWith(status: SetupStatus.downloading, progress: 0));
     try {
       await for (final pct in _modelManager.downloadModel()) {
-        emit(state.copyWith(progress: pct));
+        emit(state.copyWith(progress: pct.toDouble()));
       }
       emit(state.copyWith(status: SetupStatus.ready));
     } catch (e) {

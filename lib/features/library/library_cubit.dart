@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:path/path.dart' as p;
 
 import '../../data/document_repository.dart';
 import '../../data/models.dart';
@@ -47,7 +48,7 @@ class LibraryCubit extends Cubit<LibraryState> {
 
   Future<void> load() async {
     emit(state.copyWith(loading: true));
-    final docs = await _repo.getDocuments();
+    final docs = await _repo.all();
     emit(state.copyWith(documents: docs, loading: false));
   }
 
@@ -61,8 +62,8 @@ class LibraryCubit extends Cubit<LibraryState> {
 
     emit(state.copyWith(importing: true));
     try {
-      await _repo.importFile(path);
-      final docs = await _repo.getDocuments();
+      await _repo.importFile(path, p.basename(path));
+      final docs = await _repo.all();
       emit(state.copyWith(documents: docs, importing: false));
     } catch (e) {
       emit(state.copyWith(importing: false, error: e.toString()));
@@ -70,7 +71,7 @@ class LibraryCubit extends Cubit<LibraryState> {
   }
 
   Future<void> delete(DocumentItem doc) async {
-    await _repo.deleteDocument(doc.id);
+    await _repo.delete(doc.id!);
     await load();
   }
 }

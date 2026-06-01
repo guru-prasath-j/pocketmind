@@ -21,7 +21,7 @@ abstract class EmbeddingService {
 /// similarity. For semantic retrieval, implement [EmbeddingService] with a
 /// sentence-transformer (e.g. all-MiniLM-L6-v2) running through `tflite_flutter`
 /// and register it in the ServiceLocator. Nothing else in the app changes.
-class HashingEmbeddingService implements EmbeddingService {
+class HashingEmbeddingService extends EmbeddingService {
   @override
   final int dim;
 
