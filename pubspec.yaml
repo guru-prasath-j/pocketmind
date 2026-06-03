@@ -10,7 +10,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_gemma: ^0.8.0          # on-device LLM inference (MediaPipe under the hood)
+  flutter_gemma: ^0.16.0         # on-device LLM inference (MediaPipe under the hood)
   flutter_bloc: ^8.1.6          # BLoC state management (Cubits + immutable states)
   equatable: ^2.0.5             # value equality for BLoC states
   sqflite: ^2.3.3               # local SQLite store for chunks + embeddings
@@ -26,3 +26,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/gemma3-1b-it-int4.task

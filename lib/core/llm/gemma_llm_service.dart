@@ -1,6 +1,4 @@
-import 'package:flutter_gemma/core/model.dart';
 import 'package:flutter_gemma/flutter_gemma.dart';
-import 'package:flutter_gemma/pigeon.g.dart';
 
 import '../constants.dart';
 import 'llm_service.dart';
@@ -25,7 +23,7 @@ class GemmaLlmService implements LlmService {
     final gemma = FlutterGemmaPlugin.instance;
     _model = await gemma.createModel(
       modelType: ModelType.gemmaIt,
-      // GPU when available; the plugin transparently falls back to CPU.
+      fileType: ModelFileType.task,
       preferredBackend: PreferredBackend.gpu,
       maxTokens: AppConstants.maxTokens,
     );
@@ -34,15 +32,17 @@ class GemmaLlmService implements LlmService {
   @override
   Stream<String> generate(String prompt) async* {
     await warmUp();
-    // One session per turn keeps the KV-cache small — important on low-RAM phones.
     _session = await _model!.createSession(
       temperature: AppConstants.temperature,
       topK: AppConstants.topKSampling,
     );
-    await _session!.addQueryChunk(Message(text: prompt, isUser: true));
-    yield* _session!.getResponseAsync();
-    await _session!.close();
-    _session = null;
+    try {
+      await _session!.addQueryChunk(Message(text: prompt, isUser: true));
+      yield* _session!.getResponseAsync();
+    } finally {
+      await _session?.close();
+      _session = null;
+    }
   }
 
   @override

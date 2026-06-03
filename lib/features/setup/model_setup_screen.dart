@@ -49,7 +49,7 @@ class _SetupView extends StatelessWidget {
                   const SizedBox(height: 8),
                   Text(
                     'PocketMind runs an AI model entirely on your device. '
-                    'Download it once, then use it fully offline.',
+                    'Tap below to install the bundled model and use it fully offline.',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
@@ -58,20 +58,24 @@ class _SetupView extends StatelessWidget {
                     LinearProgressIndicator(value: state.progress),
                     const SizedBox(height: 12),
                     Text('${(state.progress * 100).toStringAsFixed(0)}%'),
+                  ] else if (state.status == SetupStatus.installing) ...[
+                    const CircularProgressIndicator(),
+                    const SizedBox(height: 12),
+                    const Text('Installing model, please wait…'),
                   ] else if (state.status == SetupStatus.error) ...[
-                    Text('Download failed: ${state.error}',
+                    Text('Setup failed: ${state.error}',
                         style: TextStyle(
                             color: Theme.of(context).colorScheme.error)),
                     const SizedBox(height: 12),
                     FilledButton(
-                      onPressed: cubit.download,
+                      onPressed: cubit.installFromAsset,
                       child: const Text('Retry'),
                     ),
                   ] else
                     FilledButton.icon(
-                      onPressed: cubit.download,
-                      icon: const Icon(Icons.download),
-                      label: const Text('Download model'),
+                      onPressed: cubit.installFromAsset,
+                      icon: const Icon(Icons.install_mobile),
+                      label: const Text('Install model'),
                     ),
                 ],
               ),

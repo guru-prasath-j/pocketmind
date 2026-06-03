@@ -6,7 +6,7 @@ class AppConstants {
   // --- Model -----------------------------------------------------------------
   // An instruction-tuned, mobile-sized model in a MediaPipe-compatible format.
   // Swap for whichever quantised model you ship/download.
-  static const String modelFileName = 'gemma2-2b-it-int4.bin';
+  static const String modelFileName = 'gemma3-1b-it-int4.task';
   static const String modelDownloadUrl =
       'https://example.com/models/gemma2-2b-it-int4.bin'; // replace with your host
 

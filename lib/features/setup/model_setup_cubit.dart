@@ -3,7 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../core/llm/model_manager.dart';
 
-enum SetupStatus { idle, downloading, ready, error }
+enum SetupStatus { idle, downloading, installing, ready, error }
 
 /// Immutable state for the first-run model download.
 class ModelSetupState extends Equatable {
@@ -47,12 +47,10 @@ class ModelSetupCubit extends Cubit<ModelSetupState> {
     }
   }
 
-  Future<void> download() async {
-    emit(state.copyWith(status: SetupStatus.downloading, progress: 0));
+  Future<void> installFromAsset() async {
+    emit(state.copyWith(status: SetupStatus.installing));
     try {
-      await for (final pct in _modelManager.downloadModel()) {
-        emit(state.copyWith(progress: pct.toDouble()));
-      }
+      await _modelManager.installFromAsset();
       emit(state.copyWith(status: SetupStatus.ready));
     } catch (e) {
       emit(state.copyWith(status: SetupStatus.error, error: e.toString()));
