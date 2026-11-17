@@ -2,6 +2,7 @@
 class AppConstants {
   static const String appName = 'PocketMind';
   static const String tagline = 'Offline AI for your documents';
+  static const String version = '0.1.0'; // keep in sync with pubspec.yaml
 
   // --- Model -----------------------------------------------------------------
   // An instruction-tuned, mobile-sized model in a MediaPipe-compatible format.

@@ -24,17 +24,47 @@ class DocumentRepository {
     required this.vectorStore,
   });
 
-  Future<List<DocumentItem>> all() => db.getDocuments();
+  Future<List<DocumentItem>> all() async {
+    final docs = await db.getDocuments();
+    // Documents imported before file sizes were tracked: backfill the size
+    // from the cached file when it still exists.
+    return Future.wait(docs.map((d) async {
+      if (d.fileSize != null || d.id == null) return d;
+      final size = await _sizeOf(d.sourcePath);
+      if (size == null) return d;
+      await db.updateDocument(d.id!, {'file_size': size});
+      return d.copyWith(fileSize: size);
+    }));
+  }
+
+  Future<void> setStarred(int id, bool starred) =>
+      db.updateDocument(id, {'starred': starred ? 1 : 0});
+
+  Future<void> markOpened(int id, DateTime at) =>
+      db.updateDocument(id, {'last_opened_at': at.millisecondsSinceEpoch});
+
+  Future<void> deleteAll() => db.deleteAllDocuments();
+
+  Future<int?> _sizeOf(String path) async {
+    try {
+      final f = File(path);
+      return await f.exists() ? await f.length() : null;
+    } catch (_) {
+      return null;
+    }
+  }
 
   Future<DocumentItem> importFile(String path, String title) async {
     final text = await _extractText(path);
     final pieces = chunker.chunk(text);
+    final size = await _sizeOf(path);
 
     final docId = await db.insertDocument(DocumentItem(
       title: title,
       sourcePath: path,
       chunkCount: pieces.length,
       createdAt: DateTime.now(),
+      fileSize: size,
     ));
 
     final vectors = embedder.embedBatch(pieces);
@@ -50,6 +80,7 @@ class DocumentRepository {
       sourcePath: path,
       chunkCount: pieces.length,
       createdAt: DateTime.now(),
+      fileSize: size,
     );
   }
 

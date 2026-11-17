@@ -1,29 +1,43 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../core/service_locator.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/widgets/brand.dart';
+import '../../core/widgets/buttons.dart';
 import '../../data/models.dart';
+import '../library/document_actions.dart';
+import '../library/library_cubit.dart';
 import 'chat_cubit.dart';
+import 'chat_sessions.dart';
+import 'widgets/assistant_illustration.dart';
+import 'widgets/chat_input_bar.dart';
+import 'widgets/message_bubble.dart';
+import 'widgets/suggestion_grid.dart';
 
+/// Conversation with one document. Expects [LibraryCubit] and [ChatSessions]
+/// above it — use [DocumentActions.openChat] to navigate here.
 class ChatScreen extends StatelessWidget {
-  const ChatScreen({super.key, required this.documentId, required this.title});
+  const ChatScreen({super.key, required this.document});
 
-  final int documentId;
-  final String title;
+  final DocumentItem document;
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => ChatCubit(ServiceLocator.instance.rag, documentId),
-      child: _ChatView(title: title),
+    return BlocProvider.value(
+      value: context.read<ChatSessions>().forDocument(document.id!),
+      child: _ChatView(initial: document),
     );
   }
 }
 
-class _ChatView extends StatefulWidget {
-  const _ChatView({required this.title});
+enum _MenuAction { clear, details, delete }
 
-  final String title;
+class _ChatView extends StatefulWidget {
+  const _ChatView({required this.initial});
+
+  final DocumentItem initial;
 
   @override
   State<_ChatView> createState() => _ChatViewState();
@@ -31,138 +45,215 @@ class _ChatView extends StatefulWidget {
 
 class _ChatViewState extends State<_ChatView> {
   final _input = TextEditingController();
+  final _focus = FocusNode();
   final _scroll = ScrollController();
 
   @override
   void dispose() {
     _input.dispose();
+    _focus.dispose();
     _scroll.dispose();
     super.dispose();
   }
 
-  void _send() {
-    final text = _input.text;
-    _input.clear();
+  void _send([String? preset]) {
+    final text = preset ?? _input.text;
+    if (text.trim().isEmpty) return;
+    if (preset == null) _input.clear();
     context.read<ChatCubit>().send(text);
+    _scrollToBottom(force: true);
+  }
+
+  void _onSuggestion(Suggestion s) {
+    if (s.prompt == null) {
+      _focus.requestFocus();
+    } else {
+      _send(s.prompt);
+    }
+  }
+
+  /// Follows the streaming answer, unless the user has scrolled up to read.
+  void _scrollToBottom({bool force = false}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scroll.hasClients) {
+      if (!_scroll.hasClients) return;
+      final pos = _scroll.position;
+      final nearBottom = pos.maxScrollExtent - pos.pixels < 160;
+      if (force || nearBottom) {
         _scroll.animateTo(
-          _scroll.position.maxScrollExtent + 200,
-          duration: const Duration(milliseconds: 250),
+          pos.maxScrollExtent,
+          duration: const Duration(milliseconds: 220),
           curve: Curves.easeOut,
         );
       }
     });
   }
 
+  Future<void> _onMenu(_MenuAction action, DocumentItem doc) async {
+    switch (action) {
+      case _MenuAction.clear:
+        context.read<ChatCubit>().clear();
+      case _MenuAction.details:
+        await DocumentActions.showDetails(context, doc);
+      case _MenuAction.delete:
+        final deleted = await DocumentActions.confirmDelete(context, doc);
+        if (deleted && mounted) Navigator.of(context).pop();
+    }
+  }
+
+  void _toggleStar(DocumentItem doc) {
+    context.read<LibraryCubit>().toggleStar(doc.id!);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        content: Text(doc.starred ? 'Removed from Starred' : 'Added to Starred'),
+        duration: const Duration(seconds: 2),
+      ));
+  }
+
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.title),
-        elevation: 0,
-        backgroundColor: scheme.surfaceVariant.withOpacity(0.5),
-        foregroundColor: scheme.onSurface,
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: BlocBuilder<ChatCubit, ChatState>(
-              builder: (context, state) => state.messages.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.chat_bubble_outline,
-                            size: 64,
-                            color: scheme.outlineVariant,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Start a conversation',
-                            style: Theme.of(context).textTheme.headlineSmall,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Ask questions about your document',
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: scheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
+    final doc = context.select<LibraryCubit, DocumentItem?>(
+          (c) => c.state.byId(widget.initial.id!),
+        ) ??
+        widget.initial;
+
+    return BlocListener<ChatCubit, ChatState>(
+      listener: (context, state) {
+        if (state.notice != null) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(SnackBar(content: Text(state.notice!)));
+        }
+        _scrollToBottom();
+      },
+      child: Scaffold(
+        backgroundColor: context.colors.background,
+        body: AmbientBackground(
+          child: SafeArea(
+            bottom: false,
+            child: Column(
+              children: [
+                _Header(
+                  doc: doc,
+                  onBack: () => Navigator.of(context).maybePop(),
+                  onToggleStar: () => _toggleStar(doc),
+                  onMenu: (a) => _onMenu(a, doc),
+                ),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => FocusScope.of(context).unfocus(),
+                    behavior: HitTestBehavior.translucent,
+                    child: BlocBuilder<ChatCubit, ChatState>(
+                      builder: (context, state) => AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 300),
+                        child: state.messages.isEmpty
+                            ? _EmptyState(
+                                busy: state.busy,
+                                onSuggestion: _onSuggestion,
+                              )
+                            : ListView.builder(
+                                key: const ValueKey('messages'),
+                                controller: _scroll,
+                                keyboardDismissBehavior:
+                                    ScrollViewKeyboardDismissBehavior.onDrag,
+                                padding:
+                                    const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                                itemCount: state.messages.length,
+                                itemBuilder: (_, i) =>
+                                    MessageBubble(message: state.messages[i]),
+                              ),
                       ),
-                    )
-                  : ListView.builder(
-                      controller: _scroll,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                      itemCount: state.messages.length,
-                      itemBuilder: (_, i) => _Bubble(message: state.messages[i]),
                     ),
+                  ),
+                ),
+                BlocSelector<ChatCubit, ChatState, bool>(
+                  selector: (s) => s.busy,
+                  builder: (context, busy) => ChatInputBar(
+                    controller: _input,
+                    focusNode: _focus,
+                    busy: busy,
+                    onSend: _send,
+                  ),
+                ),
+              ],
             ),
           ),
-          Container(
-            decoration: BoxDecoration(
-              border: Border(top: BorderSide(color: scheme.outlineVariant.withOpacity(0.2))),
-              color: scheme.surface,
+        ),
+      ),
+    );
+  }
+}
+
+class _Header extends StatelessWidget {
+  const _Header({
+    required this.doc,
+    required this.onBack,
+    required this.onToggleStar,
+    required this.onMenu,
+  });
+
+  final DocumentItem doc;
+  final VoidCallback onBack;
+  final VoidCallback onToggleStar;
+  final ValueChanged<_MenuAction> onMenu;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasMessages =
+        context.select<ChatCubit, bool>((c) => c.state.messages.isNotEmpty);
+    final busy = context.select<ChatCubit, bool>((c) => c.state.busy);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      child: Row(
+        children: [
+          CircleIconButton(
+            icon: Icons.arrow_back_rounded,
+            tooltip: 'Back',
+            onPressed: onBack,
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              doc.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 18,
+                  ),
             ),
-            child: SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _input,
-                        minLines: 1,
-                        maxLines: 4,
-                        textInputAction: TextInputAction.send,
-                        onSubmitted: (_) => _send(),
-                        decoration: InputDecoration(
-                          hintText: 'Ask about this document…',
-                          hintStyle: TextStyle(color: scheme.outlineVariant),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: scheme.outlineVariant.withOpacity(0.5)),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: scheme.outlineVariant.withOpacity(0.5)),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: scheme.primary, width: 2),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          filled: true,
-                          fillColor: scheme.surfaceVariant.withOpacity(0.3),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    BlocBuilder<ChatCubit, ChatState>(
-                      buildWhen: (a, b) => a.busy != b.busy,
-                      builder: (context, state) => IconButton.filled(
-                        onPressed: state.busy ? null : _send,
-                        icon: state.busy
-                            ? SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation(scheme.onPrimary),
-                                ),
-                              )
-                            : const Icon(Icons.send),
-                        tooltip: 'Send message',
-                      ),
-                    ),
-                  ],
-                ),
+          ),
+          const SizedBox(width: 10),
+          CircleIconButton(
+            icon: doc.starred
+                ? Icons.bookmark_rounded
+                : Icons.bookmark_border_rounded,
+            color: doc.starred ? context.colors.accent : null,
+            tooltip: doc.starred ? 'Remove from Starred' : 'Add to Starred',
+            onPressed: onToggleStar,
+          ),
+          const SizedBox(width: 10),
+          CircleMenuButton<_MenuAction>(
+            tooltip: 'More options',
+            onSelected: onMenu,
+            items: [
+              menuItem(
+                _MenuAction.clear,
+                Icons.refresh_rounded,
+                'Clear conversation',
+                enabled: hasMessages && !busy,
               ),
-            ),
+              menuItem(_MenuAction.details, Icons.info_outline_rounded,
+                  'Document details'),
+              menuItem(
+                _MenuAction.delete,
+                Icons.delete_outline_rounded,
+                'Delete document',
+                destructive: true,
+                enabled: !busy,
+              ),
+            ],
           ),
         ],
       ),
@@ -170,175 +261,52 @@ class _ChatViewState extends State<_ChatView> {
   }
 }
 
-class _Bubble extends StatefulWidget {
-  const _Bubble({required this.message});
+class _EmptyState extends StatelessWidget {
+  const _EmptyState({required this.busy, required this.onSuggestion});
 
-  final ChatMessage message;
-
-  @override
-  State<_Bubble> createState() => _BubbleState();
-}
-
-class _BubbleState extends State<_Bubble> {
-  bool _sourcesExpanded = false;
-
-  String _stripAsterisks(String text) {
-    // Remove all asterisks and markdown symbols
-    return text
-        .replaceAll(RegExp(r'\*\*'), '') // Remove **
-        .replaceAll(RegExp(r'\*'), '') // Remove single *
-        .replaceAll(RegExp(r'__'), '') // Remove __
-        .replaceAll(RegExp(r'_'), ''); // Remove single _
-  }
-
-  List<TextSpan> _formatText(String text, TextStyle baseStyle) {
-    // Strip all asterisks and markdown symbols
-    final cleanText = _stripAsterisks(text);
-    final spans = <TextSpan>[];
-    final lines = cleanText.split('\n');
-    int lineIndex = 0;
-
-    for (final line in lines) {
-      // Handle code blocks
-      if (line.startsWith('```')) {
-        final codeContent = line.replaceFirst('```', '').trim();
-        spans.add(TextSpan(
-          text: codeContent,
-          style: baseStyle.copyWith(
-            fontFamily: 'monospace',
-            backgroundColor: Colors.grey[800],
-            color: Colors.grey[100],
-          ),
-        ));
-      }
-      // Handle quotes
-      else if (line.startsWith('>')) {
-        final quoteText = line.replaceFirst('>', '').trim();
-        spans.add(TextSpan(
-          text: quoteText,
-          style: baseStyle.copyWith(
-            fontStyle: FontStyle.italic,
-            color: baseStyle.color?.withOpacity(0.7),
-          ),
-        ));
-      }
-      // Handle lists
-      else if (line.startsWith('- ') || line.startsWith('• ')) {
-        final listItem = line.replaceFirst(RegExp(r'^[-•]\s'), '');
-        spans.add(TextSpan(
-          text: '• $listItem',
-          style: baseStyle,
-        ));
-      }
-      // Handle regular text
-      else {
-        spans.add(TextSpan(
-          text: line,
-          style: baseStyle,
-        ));
-      }
-
-      // Add newline except for last line
-      lineIndex++;
-      if (lineIndex < lines.length) {
-        spans.add(const TextSpan(text: '\n'));
-      }
-    }
-
-    return spans.isNotEmpty
-        ? spans
-        : [TextSpan(text: cleanText, style: baseStyle)];
-  }
+  final bool busy;
+  final ValueChanged<Suggestion> onSuggestion;
 
   @override
   Widget build(BuildContext context) {
-    final isUser = widget.message.sender == Sender.user;
-    final scheme = Theme.of(context).colorScheme;
-    final baseStyle = Theme.of(context).textTheme.bodyMedium ?? const TextStyle();
-
-    return Align(
-      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 10),
-        padding: const EdgeInsets.all(14),
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.85,
-        ),
-        decoration: BoxDecoration(
-          color: isUser ? scheme.primary.withOpacity(0.9) : scheme.surfaceVariant,
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(18),
-            topRight: const Radius.circular(18),
-            bottomLeft: Radius.circular(isUser ? 18 : 4),
-            bottomRight: Radius.circular(isUser ? 4 : 18),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 12,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SelectableText.rich(
-              TextSpan(
-                children: widget.message.text.isEmpty && widget.message.isStreaming
-                    ? [
-                        TextSpan(text: '…', style: baseStyle.copyWith(
-                          color: isUser ? scheme.onPrimary : baseStyle.color,
-                          fontSize: 18,
-                        ))
-                      ]
-                    : _formatText(widget.message.text, baseStyle.copyWith(
-                        color: isUser ? scheme.onPrimary : baseStyle.color,
-                      )),
-              ),
-              style: baseStyle.copyWith(
-                height: 1.6,
-                letterSpacing: 0.2,
-                color: isUser ? scheme.onPrimary : baseStyle.color,
-              ),
-            ),
-            if (widget.message.sources.isNotEmpty) ...[
-              const SizedBox(height: 14),
-              GestureDetector(
-                onTap: () => setState(() => _sourcesExpanded = !_sourcesExpanded),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: (isUser ? scheme.primaryContainer : scheme.surface).withOpacity(0.6),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: scheme.outlineVariant.withOpacity(0.3),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        '📚 ${widget.message.sources.length} source(s)',
-                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: isUser ? scheme.onPrimaryContainer : scheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Icon(
-                        _sourcesExpanded ? Icons.expand_less : Icons.expand_more,
-                        size: 18,
-                        color: isUser ? scheme.onPrimaryContainer : scheme.onSurfaceVariant,
-                      ),
-                    ],
-                  ),
+    return LayoutBuilder(
+      key: const ValueKey('empty'),
+      builder: (context, c) {
+        // Shrink the illustration on short screens / when the keyboard is up.
+        final art = math.min(230.0, math.min(c.maxWidth * 0.6, c.maxHeight * 0.4));
+        return SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: math.max(0, c.maxHeight - 24)),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (art >= 110) AssistantIllustration(size: art),
+                const SizedBox(height: 20),
+                Text(
+                  'Start a conversation',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context)
+                      .textTheme
+                      .headlineSmall
+                      ?.copyWith(fontSize: 26),
                 ),
-              ),
-            ],
-          ],
-        ),
-      ),
+                const SizedBox(height: 8),
+                Text(
+                  'Ask questions about your document',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: context.colors.textSecondary,
+                      ),
+                ),
+                const SizedBox(height: 28),
+                SuggestionGrid(onSelected: onSuggestion, enabled: !busy),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

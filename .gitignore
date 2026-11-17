@@ -23,3 +23,6 @@ android/.gradle/
 *.bin
 *.task
 assets/models/
+
+# Kotlin compiler cache
+android/.kotlin/
