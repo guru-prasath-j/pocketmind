@@ -31,6 +31,14 @@ Future<void> _loadFonts() async {
   await (FontLoader('MaterialIcons')
         ..addFont(read('materialicons-regular.otf')))
       .load();
+  // Code blocks use the generic 'monospace' family; map it to Consolas when
+  // available (Windows) so code renders instead of placeholder boxes.
+  final mono = File(r'C:\Windows\Fonts\consola.ttf');
+  if (mono.existsSync()) {
+    await (FontLoader('monospace')
+          ..addFont(Future.value(ByteData.sublistView(mono.readAsBytesSync()))))
+        .load();
+  }
 }
 
 Future<void> _shot(WidgetTester tester, String name) async {

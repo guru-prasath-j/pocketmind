@@ -147,6 +147,7 @@ class Harness {
       value: themeCubit,
       child: BlocBuilder<ThemeCubit, ThemeMode>(
         builder: (context, mode) => MaterialApp(
+          debugShowCheckedModeBanner: false,
           theme: AppTheme.light(),
           darkTheme: AppTheme.dark(),
           themeMode: mode == ThemeMode.system ? ThemeMode.dark : mode,
